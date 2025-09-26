@@ -67,7 +67,7 @@ func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		return nil, err
 	}
 
-	volume := NewVolume(volumeID, mounter)
+	volume := NewVolume(volumeID, mounter, ns.Driver)
 	if err := volume.Stage(stagingTargetPath); err != nil {
 		// node stage is unsuccessfull
 		ns.removeVolumeMutex(volumeID)
@@ -280,17 +280,7 @@ func (ns *NodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 }
 
 func (ns *NodeServer) NodeCleanup() {
-	ns.volumes.Range(func(_, vol any) bool {
-		v := vol.(*Volume)
-		if len(v.StagedPath) > 0 {
-			glog.Infof("cleaning up volume %s at %s", v.VolumeId, v.StagedPath)
-			err := v.Unstage(v.StagedPath)
-			if err != nil {
-				glog.Warningf("error cleaning up volume %s at %s, err: %v", v.VolumeId, v.StagedPath, err)
-			}
-		}
-		return true
-	})
+	glog.Infof("node cleanup skipped; mount service retains mounts across restarts")
 }
 
 func (ns *NodeServer) getVolumeMutex(volumeID string) *sync.Mutex {
