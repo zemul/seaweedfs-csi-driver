@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/seaweedfs/seaweedfs-csi-driver/pkg/utils"
+	"k8s.io/mount-utils"
 	"os"
 	"os/exec"
 	"strings"
@@ -93,6 +94,12 @@ func (m *Manager) Unmount(req *UnmountRequest) (*UnmountResponse, error) {
 	if entry == nil {
 		glog.V(1).Infof("volume %s not mounted", req.VolumeID)
 		return &UnmountResponse{}, nil
+	}
+
+	if ok, err := mountutil.IsMountPoint(entry.targetPath); ok || mount.IsCorruptedMnt(err) {
+		if err = mountutil.Unmount(entry.targetPath); err != nil {
+			return &UnmountResponse{}, err
+		}
 	}
 
 	defer os.RemoveAll(entry.cacheDir)
@@ -242,10 +249,6 @@ func (p *weedMountProcess) wait() {
 }
 
 func (p *weedMountProcess) stop() error {
-	if p.cmd.Process == nil {
-		return nil
-	}
-
 	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil && err != os.ErrProcessDone {
 		glog.Warningf("sending SIGTERM to weed mount failed: %v", err)
 	}
