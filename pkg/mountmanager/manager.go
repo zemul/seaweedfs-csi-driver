@@ -3,6 +3,7 @@ package mountmanager
 import (
 	"errors"
 	"fmt"
+	"github.com/seaweedfs/seaweedfs-csi-driver/pkg/utils"
 	"os"
 	"os/exec"
 	"strings"
@@ -11,10 +12,7 @@ import (
 	"time"
 
 	"github.com/seaweedfs/seaweedfs/weed/glog"
-	"k8s.io/mount-utils"
 )
-
-var kubeMounter = mount.New("")
 
 // Manager owns weed mount processes and exposes helpers to start and stop them.
 type Manager struct {
@@ -22,7 +20,7 @@ type Manager struct {
 
 	mu     sync.Mutex
 	mounts map[string]*mountEntry
-	locks  *keyMutex
+	locks  *utils.KeyMutex
 }
 
 // Config configures a Manager instance.
@@ -39,7 +37,7 @@ func NewManager(cfg Config) *Manager {
 	return &Manager{
 		weedBinary: binary,
 		mounts:     make(map[string]*mountEntry),
-		locks:      newKeyMutex(),
+		locks:      utils.NewKeyMutex(),
 	}
 }
 
@@ -52,7 +50,7 @@ func (m *Manager) Mount(req *MountRequest) (*MountResponse, error) {
 		return nil, err
 	}
 
-	lock := m.locks.get(req.VolumeID)
+	lock := m.locks.Get(req.VolumeID)
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -87,7 +85,7 @@ func (m *Manager) Unmount(req *UnmountRequest) (*UnmountResponse, error) {
 		return nil, errors.New("volumeId is required")
 	}
 
-	lock := m.locks.get(req.VolumeID)
+	lock := m.locks.Get(req.VolumeID)
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -117,7 +115,7 @@ func (m *Manager) removeMount(volumeID string) *mountEntry {
 	defer m.mu.Unlock()
 	entry := m.mounts[volumeID]
 	delete(m.mounts, volumeID)
-	m.locks.delete(volumeID)
+	m.locks.Delete(volumeID)
 	return entry
 }
 
@@ -168,28 +166,6 @@ func (m *Manager) startMount(req *MountRequest) (*mountEntry, error) {
 		localSocket: localSocket,
 		process:     process,
 	}, nil
-}
-
-func ensureTargetClean(targetPath string) error {
-	isMount, err := kubeMounter.IsMountPoint(targetPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return os.MkdirAll(targetPath, 0750)
-		}
-		if mount.IsCorruptedMnt(err) {
-			if err := kubeMounter.Unmount(targetPath); err != nil {
-				return err
-			}
-			return ensureTargetClean(targetPath)
-		}
-		return err
-	}
-	if isMount {
-		if err := kubeMounter.Unmount(targetPath); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func validateMountRequest(req *MountRequest) error {
@@ -260,7 +236,7 @@ func (p *weedMountProcess) wait() {
 	}
 
 	time.Sleep(100 * time.Millisecond)
-	_ = kubeMounter.Unmount(p.target)
+	_ = mountutil.Unmount(p.target)
 
 	close(p.done)
 }
@@ -289,26 +265,5 @@ func (p *weedMountProcess) stop() error {
 		return nil
 	case <-time.After(1 * time.Second):
 		return errors.New("timed out waiting for weed mount to stop")
-	}
-}
-
-func waitForMount(path string, timeout time.Duration) error {
-	var elapsed time.Duration
-	interval := 10 * time.Millisecond
-
-	for {
-		notMount, err := kubeMounter.IsLikelyNotMountPoint(path)
-		if err != nil {
-			return err
-		}
-		if !notMount {
-			return nil
-		}
-
-		time.Sleep(interval)
-		elapsed += interval
-		if elapsed >= timeout {
-			return errors.New("timeout waiting for mount")
-		}
 	}
 }

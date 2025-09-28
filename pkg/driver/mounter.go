@@ -10,7 +10,10 @@ import (
 	"github.com/seaweedfs/seaweedfs-csi-driver/pkg/datalocality"
 	"github.com/seaweedfs/seaweedfs-csi-driver/pkg/mountmanager"
 	"github.com/seaweedfs/seaweedfs/weed/glog"
+	"k8s.io/mount-utils"
 )
+
+var mountutil = mount.New("")
 
 type Unmounter interface {
 	Unmount() error

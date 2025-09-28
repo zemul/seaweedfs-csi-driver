@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/seaweedfs/seaweedfs-csi-driver/pkg/utils"
 	"io"
 	"net"
 	"net/http"
@@ -20,7 +21,7 @@ type Client struct {
 
 // NewClient builds a new Client for the given endpoint.
 func NewClient(endpoint string) (*Client, error) {
-	scheme, address, err := ParseEndpoint(endpoint)
+	scheme, address, err := utils.ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, err
 	}
