@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"github.com/seaweedfs/seaweedfs-csi-driver/pkg/utils"
 	"net"
 	"net/http"
 	"os"
@@ -24,7 +25,7 @@ var (
 func main() {
 	flag.Parse()
 
-	scheme, address, err := mountmanager.ParseEndpoint(*endpoint)
+	scheme, address, err := utils.ParseEndpoint(*endpoint)
 	if err != nil {
 		glog.Fatalf("invalid endpoint: %v", err)
 	}
